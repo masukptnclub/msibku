@@ -6,4 +6,5 @@ Cara pakainya:
 4. Update dengan npm update atau command lain yg cocok 'npm u' 'npm update' dst
 5. Install https 'npm i https'
 6. Install readline 'npm i readline'
-7. Jalankan kode 'node msibku.js'
+7. Install prompt sync 'npm i prompt-sync'
+8. Jalankan kode 'node msibku.js'
