@@ -1,5 +1,7 @@
 const https = require('https');
 const readline = require('readline');
+const prompt = require('prompt-sync')({ sigint: true }); // sigint: true memungkinkan Ctrl+C untuk menghentikan program
+
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -8,12 +10,10 @@ const rl = readline.createInterface({
 
 function promptForCredentials() {
   return new Promise((resolve) => {
-    rl.question('Email: ', (email) => {
-      rl.question('Password: ', (password) => {
-        resolve({ email, password });
-        rl.close();
-      });
-    });
+    const email = prompt('Email: ');
+    const password = prompt('Password: ', { echo: '*' }); // echo: '*' akan menyembunyikan input dengan karakter '*'
+
+    resolve({ email, password });
   });
 }
 
@@ -181,7 +181,16 @@ async function fetchActivityId(token, applicationId) {
           const responseJSON = JSON.parse(responseData);
 
           if (res.statusCode === 200) {
-            resolve(responseJSON.data.position_id); 
+            const activityId = responseJSON.data.position_id;
+            const generateCode = responseJSON.data.generate_code; 
+
+            // Tentukan path berdasarkan generate_code
+            let path = '/magang/browse/position/'; 
+            if (generateCode.startsWith('SIB')) {
+              path = '/studi/browse/activity/';
+            }
+
+            resolve({ activityId, path }); 
           } else {
             // Tampilkan respons asli hanya saat error
             console.error('Fetch activity ID response (error):', responseJSON); 
@@ -203,10 +212,13 @@ async function fetchActivityId(token, applicationId) {
   });
 }
 
-async function fetchQuotaInformation(token, activityId) {
+// Modifikasi fetchQuotaInformation untuk menerima path
+async function fetchQuotaInformation(token, activityId, path) {
+  const encodedPath = encodeURI(path); // Encode the path
+
   const options = {
     hostname: 'api.kampusmerdeka.kemdikbud.go.id',
-    path: `/magang/browse/position/${activityId}`,
+    path: `${encodedPath}${activityId}`, 
     method: 'GET',
     headers: {
       'Accept': '*/*',
@@ -262,9 +274,10 @@ async function fetchQuotaInformation(token, activityId) {
   });
 }
 
+
+
 async function main() {
   try {
-    console.log('Credit by ADS');
     const token = await loginToMerdekaBelajar();
     console.log('Login successful!');
 
@@ -276,16 +289,15 @@ async function main() {
       allApplications = allApplications.concat(response.data);
     }
 
-    // Tampilkan preview data lamaran, ambil activity_id, dan tampilkan status kuota
     console.log('\nDaftar Lamaran:');
     for (const application of allApplications) {
       console.log(`- ID: ${application.id}, Nama Mitra: ${application.mitra_brand_name}, Nama Kegiatan: ${application.nama_kegiatan}`);
 
       try {
-        const activityId = await fetchActivityId(token, application.id);
-        console.log(`  Activity ID: ${activityId}`);
+        const { activityId, path } = await fetchActivityId(token, application.id); // Ambil activityId dan path
+        console.log(`  Activity ID: ${activityId}`); // Log hanya activityId, bukan seluruh objek
 
-        const quotaInfo = await fetchQuotaInformation(token, activityId);
+        const quotaInfo = await fetchQuotaInformation(token, activityId, path); // Gunakan path yang sesuai
         const quotaStatus = quotaInfo.is_quota_full ? 'Penuh' : 'Tersedia';
         console.log(`  Status Kuota: ${quotaStatus}`);
       } catch (error) {
@@ -296,7 +308,11 @@ async function main() {
     }
   } catch (error) {
     console.error('Terjadi kesalahan:', error); 
+  } finally {
+    // Pastikan program berhenti bahkan jika terjadi error
+    process.exit(); 
   }
 }
+
 
 main();
